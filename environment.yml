@@ -1,0 +1,30 @@
+name: etf_env
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Python version
+  - python
+
+  # Core scientific stack
+  - numpy
+  - pandas
+  - scipy
+  
+  # Data visualization
+  - matplotlib
+  - seaborn
+  
+  # Financial libraries
+  - yfinance
+  
+  # Jupyter support
+  - jupyter
+  - ipykernel
+  
+  # Additional dependencies using pip
+  - pip
+  - pip:
+    - yahoofinancials
+    - pandas-datareader
