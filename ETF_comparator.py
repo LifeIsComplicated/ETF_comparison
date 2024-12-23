@@ -87,7 +87,7 @@ def normalize_prices(df):
 
 ### backtester functions
 
-def get_random_date_range(all_prices, years_window=5):
+def get_random_date_range(all_prices, years_window=10):
     try:
         # Safely get the first and last dates from the index
         first_date = all_prices.index.min()
@@ -116,25 +116,64 @@ def get_random_date_range(all_prices, years_window=5):
 def get_performance(df, ticker):
     return (df.iloc[-1][f"Close_{ticker}"] - df.iloc[0][f"Close_{ticker}"])/df.iloc[0][f"Close_{ticker}"]
 
-def backtester(all_prices, tickers):
+def backtester(all_prices, tickers, years_of_backtest):
     # Get a random date range
-    start_date, end_date = get_random_date_range(all_prices, years_window=5)
+    start_date, end_date = get_random_date_range(all_prices, years_window=years_of_backtest)
     all_prices_bt = all_prices.loc[start_date:end_date]
-    all_prices_bt = cumsum_dividends(all_prices_bt)
-    all_prices_bt = update_prices_with_dividends(all_prices_bt)
+    if including_dividends:
+        all_prices_bt = cumsum_dividends(all_prices_bt)
+        all_prices_bt = update_prices_with_dividends(all_prices_bt)
     all_prices_bt = normalize_prices(all_prices_bt)
     if len(tickers)==2:
-        return get_performance(all_prices_bt, tickers[1]) - get_performance(all_prices_bt, tickers[0])
+        return (all_prices_bt, get_performance(all_prices_bt, tickers[1]) - get_performance(all_prices_bt, tickers[0]))
     elif len(tickers)==1:
-        return get_performance(all_prices_bt, tickers[0])
+        return (all_prices_bt, get_performance(all_prices_bt, tickers[0]))
     else:
         print("More than 2 tickers listed. I don't know what comparison you'd like me to do!")
 
-def plot_performance_histogram(performances):
+
+def plot_normalized_prices(all_prices, tickers, including_dividends):
+    # Create the plot
+    plt.figure(figsize=(12, 6))
+    for ticker in tickers:
+        plt.plot(all_prices.index, all_prices[f'Close_{ticker}'], label=f'{ticker} Close price')
+
+    if including_dividends:
+        plt.title(f'Normalized Price Comparison. Dividends INCLUDED')
+    else:
+        plt.title(f'Normalized Price Comparison. Dividends NOT INCLUDED')
+    plt.xlabel('Date')
+    plt.ylabel('Normalized Price')
+    plt.legend()
+    plt.grid(True)
+
+    # Rotate x-axis labels for better readability
+    plt.xticks(rotation=45)
+
+    # Adjust layout to prevent label cutoff
+    plt.tight_layout()
+
+    # Show the plot
+    plt.show()
+
+def plot_performance_histogram(performances, tickers, including_dividends):
     plt.figure(figsize=(10, 6))
-    plt.hist(performances, bins=20, edgecolor='black')
-    plt.title('Distribution of Performance Differences')
-    plt.xlabel('Performance Difference')
+    
+    if len(tickers) == 2:
+        plt.hist(performances, bins=20, edgecolor='black')
+        if including_dividends:
+            plt.title(f'Distribution of (absolute) Performance Differences between {tickers[1]} and {tickers[0]} including dividends')
+        else:
+            plt.title(f'Distribution of (absolute) Performance Differences between {tickers[1]} and {tickers[0]} excluding dividends')
+        plt.xlabel('Absolute Performance Difference [%]')
+    elif len(tickers)==1:
+        performances = [x * 100 for x in performances]
+        plt.hist(performances, bins=20, edgecolor='black')
+        if including_dividends:
+            plt.title(f'Distribution of Performances for ticker {tickers[0]} including dividends')
+        else:
+            plt.title(f'Distribution of Performances for ticker {tickers[0]} excluding dividends')
+        plt.xlabel('Ticker Performance [%]')
     plt.ylabel('Frequency')
     
     # Add mean and median lines
@@ -155,28 +194,6 @@ def plot_performance_histogram(performances):
     plt.grid(True, alpha=0.3)
     plt.show()
 
-def plot_normalized_prices(all_prices, tickers, start_date, end_date):
-    # Create the plot
-    plt.figure(figsize=(12, 6))
-    for ticker in tickers:
-        plt.plot(all_prices.index, all_prices[f'Close_{ticker}'], label=f'{ticker} Close price')
-
-    plt.title(f'Normalized Price Comparison\n{start_date.date()} to {end_date.date()}')
-    plt.xlabel('Date')
-    plt.ylabel('Normalized Price')
-    plt.legend()
-    plt.grid(True)
-
-    # Rotate x-axis labels for better readability
-    plt.xticks(rotation=45)
-
-    # Adjust layout to prevent label cutoff
-    plt.tight_layout()
-
-    # Show the plot
-    plt.show()
-
-
 
 ####### GLOBAL VARIABLES ########
 #################################
@@ -192,23 +209,24 @@ dividends_currencies["VT"] = "USD"
 
 target_currency = "CHF"
 
+#backtest parameters
+years_of_backtest = 5
+including_dividends = True
 n_backtests = 1000
 random_int_for_price_comparison = random.randint(0, n_backtests)
 
-
 if __name__ == "__main__":
     ## initialize the dataframe
-    for ticker in tickers:
-        all_prices = pd.DataFrame(columns=[f'Close_{ticker}', f'Dividends_{ticker}'])
-
-    # Download and process data for each ticker and populate the dataframe
+    all_prices = pd.DataFrame()
+    # Download data for each ticker and populate the dataframe
     for ticker in tickers:
         # Download historical data
         data = get_ticker_history(ticker=ticker)
         all_prices[f'Close_{ticker}'] = data['Close'] 
         all_prices[f'Dividends_{ticker}'] = data['Dividends'] 
-        
+    ### Put all prices in target currency, include dividends, normalize to one
     all_prices = convert_all_prices_to_target_currency(all_prices, tickers, operation_currencies, dividends_currencies, target_currency)
+    ### DO NOT include dividends HERE or normalize to 1: this MUST be done in the backtests, renormalizing each time
     all_prices = all_prices.dropna()
 
     if len(all_prices) == 0:
@@ -218,9 +236,10 @@ if __name__ == "__main__":
     #### Start backtests
     performances = list()
     for i in range(n_backtests):
-        performances.append(backtester(all_prices, tickers))
+        all_prices_bt, performance = backtester(all_prices, tickers, years_of_backtest=years_of_backtest)
+        performances.append(performance)
         if i == random_int_for_price_comparison:
-            plot_normalized_prices(all_prices, tickers, all_prices.index.min(), all_prices.index.max())
+            plot_normalized_prices(all_prices_bt, tickers, including_dividends)
 
-    plot_performance_histogram(performances)
+    plot_performance_histogram(performances, tickers, including_dividends)
  
