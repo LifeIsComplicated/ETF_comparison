@@ -116,7 +116,7 @@ def core_backtester(all_prices, tickers, years_of_backtest):
     start_date, end_date = get_random_date_range(all_prices, years_window=years_of_backtest)
     all_prices_bt = all_prices.loc[start_date:end_date]
     if including_dividends:
-        all_prices_bt = cumsum_dividends(all_prices_bt)
+        all_prices_bt = cumsum_dividends(all_prices_bt) ## TODO: double-check what happens if ticker is bought 1 day before "dividend time"
         all_prices_bt = update_prices_with_dividends(all_prices_bt)
     all_prices_bt = normalize_prices(all_prices_bt)
     if len(tickers)==2:
@@ -221,14 +221,17 @@ def plot_performance_histogram(performances, tickers, including_dividends):
 ####### GLOBAL VARIABLES ########
 #################################
 # List of tickers to compare
-tickers = ["VWRL.SW", "VT"]  # Add more tickers as needed
+tickers = ["XDWL.SW", "VT"]  # Add more tickers as needed
 operation_currencies = {}
 operation_currencies["VWRL.SW"] = "CHF"
 operation_currencies["VT"] = "USD"
+operation_currencies["XDWL.SW"] = "CHF" #Xtrackers MSCI World 
+
 
 dividends_currencies = {}
 dividends_currencies["VWRL.SW"] = "USD"
 dividends_currencies["VT"] = "USD"
+dividends_currencies["XDWL.SW"] = "USD"
 
 target_currency = "CHF"
 
@@ -240,9 +243,9 @@ n_backtests = 1000
 random_int_for_price_comparison = random.randint(0, n_backtests)
 
 if __name__ == "__main__":
-    wrapper_backtester(["VWRL.SW"], start_date=init_date, end_date=datetime.now()) ##only VWRL
-    wrapper_backtester(["VT"], start_date=init_date, end_date=datetime.now()) ##only VT
-    wrapper_backtester(tickers, start_date=init_date, end_date=datetime.now()) ##comparing VT and VWRL
+    wrapper_backtester([tickers[0]], start_date=init_date, end_date=datetime.now()) ##performance of first ETF
+    wrapper_backtester([tickers[1]], start_date=init_date, end_date=datetime.now()) ##performance of the second ETF
+    wrapper_backtester(tickers, start_date=init_date, end_date=datetime.now()) ##performance diff second - first
 
 
 
