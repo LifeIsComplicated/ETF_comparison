@@ -21,7 +21,7 @@ def get_forex_history(currency_from, currency_to, start_date, end_date):
     if currency_from == currency_to:
         return pd.Series(1, index=pd.date_range(start=start_date, end=end_date))
     
-    forex = yf.Ticker(f"{currency_from}{currency_to}=X")
+    forex = yf.Ticker(f"{currency_from}{currency_to}=X") #e.g. USDCHF=X is the conversion factor from USD to CHF
     forex_data = forex.history(start=start_date, end=end_date)
     
     # Strip the hour to avoid UTC conversion issues and things like that
@@ -43,11 +43,6 @@ def convert_all_prices_to_target_currency(df, tickers, operation_currencies, div
         conversion_operation_to_target = get_forex_history(operation_currency, target_currency, 
                                                       df.index.min(), df.index.max())
         
-        # Align the forex data with the main dataframe
-        conversion_dividends_to_target = conversion_dividends_to_target.reindex(df.index)
-        conversion_operation_to_target = conversion_operation_to_target.reindex(df.index)
-        
-
         # store conversion factors (for comparison)
         df[f"conversion_dividends_to_target_{ticker}"] = conversion_dividends_to_target
         df[f"conversion_operation_to_target_{ticker}"] = conversion_operation_to_target
@@ -116,7 +111,7 @@ def get_random_date_range(all_prices, years_window=10):
 def get_performance(df, ticker):
     return (df.iloc[-1][f"Close_{ticker}"] - df.iloc[0][f"Close_{ticker}"])/df.iloc[0][f"Close_{ticker}"]
 
-def backtester(all_prices, tickers, years_of_backtest):
+def core_backtester(all_prices, tickers, years_of_backtest):
     # Get a random date range
     start_date, end_date = get_random_date_range(all_prices, years_window=years_of_backtest)
     all_prices_bt = all_prices.loc[start_date:end_date]
@@ -131,6 +126,34 @@ def backtester(all_prices, tickers, years_of_backtest):
     else:
         print("More than 2 tickers listed. I don't know what comparison you'd like me to do!")
 
+def wrapper_backtester(tickers, start_date=datetime(2000,1,1), end_date=datetime.now()):
+    ## initialize the dataframe
+    all_prices = pd.DataFrame()
+    # Download data for each ticker and populate the dataframe
+    for ticker in tickers:
+        # Download historical data
+        data = get_ticker_history(ticker=ticker, start_date=start_date, end_date=end_date)
+        all_prices[f'Close_{ticker}'] = data['Close'] 
+        all_prices[f'Dividends_{ticker}'] = data['Dividends'] 
+    ### Put all prices in target currency, include dividends, normalize to one
+    all_prices = convert_all_prices_to_target_currency(all_prices, tickers, operation_currencies, dividends_currencies, target_currency)
+    ### DO NOT include dividends HERE or normalize to 1: this MUST be done in the backtests, renormalizing each time
+    all_prices = all_prices.dropna()
+
+    if len(all_prices) == 0:
+        print("No valid data found for the specified tickers and date range.")
+        exit(1)
+
+    #### Start backtests
+    performances = list()
+    for i in range(n_backtests):
+        all_prices_bt, performance = core_backtester(all_prices, tickers, years_of_backtest=years_of_backtest)
+        performances.append(performance)
+        if i == random_int_for_price_comparison:
+            plot_normalized_prices(all_prices_bt, tickers, including_dividends)
+
+    plot_performance_histogram(performances, tickers, including_dividends)
+    return 0
 
 def plot_normalized_prices(all_prices, tickers, including_dividends):
     # Create the plot
@@ -210,36 +233,18 @@ dividends_currencies["VT"] = "USD"
 target_currency = "CHF"
 
 #backtest parameters
+init_date = datetime(2000,1,1)
 years_of_backtest = 5
 including_dividends = True
 n_backtests = 1000
 random_int_for_price_comparison = random.randint(0, n_backtests)
 
 if __name__ == "__main__":
-    ## initialize the dataframe
-    all_prices = pd.DataFrame()
-    # Download data for each ticker and populate the dataframe
-    for ticker in tickers:
-        # Download historical data
-        data = get_ticker_history(ticker=ticker)
-        all_prices[f'Close_{ticker}'] = data['Close'] 
-        all_prices[f'Dividends_{ticker}'] = data['Dividends'] 
-    ### Put all prices in target currency, include dividends, normalize to one
-    all_prices = convert_all_prices_to_target_currency(all_prices, tickers, operation_currencies, dividends_currencies, target_currency)
-    ### DO NOT include dividends HERE or normalize to 1: this MUST be done in the backtests, renormalizing each time
-    all_prices = all_prices.dropna()
+    wrapper_backtester(["VWRL.SW"], start_date=init_date, end_date=datetime.now()) ##only VWRL
+    wrapper_backtester(["VT"], start_date=init_date, end_date=datetime.now()) ##only VT
+    wrapper_backtester(tickers, start_date=init_date, end_date=datetime.now()) ##comparing VT and VWRL
 
-    if len(all_prices) == 0:
-        print("No valid data found for the specified tickers and date range.")
-        exit(1)
 
-    #### Start backtests
-    performances = list()
-    for i in range(n_backtests):
-        all_prices_bt, performance = backtester(all_prices, tickers, years_of_backtest=years_of_backtest)
-        performances.append(performance)
-        if i == random_int_for_price_comparison:
-            plot_normalized_prices(all_prices_bt, tickers, including_dividends)
 
-    plot_performance_histogram(performances, tickers, including_dividends)
+
  
