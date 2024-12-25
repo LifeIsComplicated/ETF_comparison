@@ -109,7 +109,7 @@ def get_random_date_range(all_prices, years_window=10):
 
 
 def get_performance(df, ticker):
-    return (df.iloc[-1][f"Close_{ticker}"] - df.iloc[0][f"Close_{ticker}"])/df.iloc[0][f"Close_{ticker}"]
+    return (df.iloc[-1][f"Close_{ticker}"] - df.iloc[0][f"Close_{ticker}"])*100/df.iloc[0][f"Close_{ticker}"]
 
 def core_backtester(all_prices, tickers, years_of_backtest):
     # Get a random date range
@@ -120,7 +120,9 @@ def core_backtester(all_prices, tickers, years_of_backtest):
         all_prices_bt = update_prices_with_dividends(all_prices_bt)
     all_prices_bt = normalize_prices(all_prices_bt)
     if len(tickers)==2:
-        return (all_prices_bt, get_performance(all_prices_bt, tickers[1]) - get_performance(all_prices_bt, tickers[0]))
+        perf_ticker_1 = get_performance(all_prices_bt, tickers[1])
+        perf_ticker_0 = get_performance(all_prices_bt, tickers[0])
+        return (all_prices_bt, perf_ticker_1-perf_ticker_0)
     elif len(tickers)==1:
         return (all_prices_bt, get_performance(all_prices_bt, tickers[0]))
     else:
@@ -190,7 +192,6 @@ def plot_performance_histogram(performances, tickers, including_dividends):
             plt.title(f'Distribution of (absolute) Performance Differences between {tickers[1]} and {tickers[0]} excluding dividends')
         plt.xlabel('Absolute Performance Difference [%]')
     elif len(tickers)==1:
-        performances = [x * 100 for x in performances]
         plt.hist(performances, bins=20, edgecolor='black')
         if including_dividends:
             plt.title(f'Distribution of Performances for ticker {tickers[0]} including dividends')
@@ -221,17 +222,22 @@ def plot_performance_histogram(performances, tickers, including_dividends):
 ####### GLOBAL VARIABLES ########
 #################################
 # List of tickers to compare
-tickers = ["XDWL.SW", "VT"]  # Add more tickers as needed
+tickers = ["XDWL.SW","VT"]  # Add more tickers as needed
 operation_currencies = {}
 operation_currencies["VWRL.SW"] = "CHF"
+operation_currencies["SSAC.SW"] = "CHF"
 operation_currencies["VT"] = "USD"
+operation_currencies["VYMI"] = "USD"
 operation_currencies["XDWL.SW"] = "CHF" #Xtrackers MSCI World 
-
+operation_currencies["XEON.MI"] = "EUR"
 
 dividends_currencies = {}
 dividends_currencies["VWRL.SW"] = "USD"
+dividends_currencies["SSAC.SW"] = "USD" #it's accumulating
 dividends_currencies["VT"] = "USD"
 dividends_currencies["XDWL.SW"] = "USD"
+dividends_currencies["XEON.MI"] = "EUR"
+dividends_currencies["VYMI"] = "USD"
 
 target_currency = "CHF"
 
@@ -243,8 +249,8 @@ n_backtests = 1000
 random_int_for_price_comparison = random.randint(0, n_backtests)
 
 if __name__ == "__main__":
-    wrapper_backtester([tickers[0]], start_date=init_date, end_date=datetime.now()) ##performance of first ETF
-    wrapper_backtester([tickers[1]], start_date=init_date, end_date=datetime.now()) ##performance of the second ETF
+    #wrapper_backtester([tickers[0]], start_date=init_date, end_date=datetime.now()) ##performance of first ETF
+    #wrapper_backtester([tickers[1]], start_date=init_date, end_date=datetime.now()) ##performance of the second ETF
     wrapper_backtester(tickers, start_date=init_date, end_date=datetime.now()) ##performance diff second - first
 
 
