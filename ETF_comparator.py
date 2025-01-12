@@ -58,27 +58,31 @@ def convert_all_prices_to_target_currency(df, tickers, operation_currencies, div
     return df
 
 def cumsum_dividends(df):
+    df = df.copy() 
     # Sum dividends for each date
     for column in df.columns:
         if "Dividends" in column:
-            df[column] = df[column].cumsum()
+            df.loc[:, column] = df[column].cumsum() #avoid warnings
     return df
 
 def update_prices_with_dividends(df):
+    df = df.copy()
     for column in df.columns:
         if "Close" in column:
             ticker = column.split('_')[1]
             dividends_column = f'Dividends_{ticker}'
             if dividends_column in df.columns:
-                df[column] = df[column] + df[dividends_column]
+                df.loc[:, column] = df[column] + df[dividends_column] #avoid warnings
     return df
 
 def normalize_prices(df):
+    df = df.copy()
     # Normalize prices (not dividends!) to start at 1 (for a fair comparison)
     for column in df.columns:
         if "Close" in column:
-            df[column] = df[column] / df[column].iloc[0]
+            df.loc[:, column] = df[column] / df[column].iloc[0] #avoid warnings
     return df
+
 
 ### backtester functions
 
@@ -136,7 +140,9 @@ def wrapper_backtester(tickers, start_date=datetime(2000,1,1), end_date=datetime
         # Download historical data
         data = get_ticker_history(ticker=ticker, start_date=start_date, end_date=end_date)
         all_prices[f'Close_{ticker}'] = data['Close'] 
-        all_prices[f'Dividends_{ticker}'] = data['Dividends'] 
+        all_prices[f'Dividends_{ticker}'] = data['Dividends']
+        date_range = (data.index.max() - data.index.min()).days
+        print(f"****The ticker {ticker} has {date_range} days of history") 
     ### Put all prices in target currency, include dividends, normalize to one
     all_prices = convert_all_prices_to_target_currency(all_prices, tickers, operation_currencies, dividends_currencies, target_currency)
     ### DO NOT include dividends HERE or normalize to 1: this MUST be done in the backtests, renormalizing each time
