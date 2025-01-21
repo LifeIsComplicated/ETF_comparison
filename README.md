@@ -1,6 +1,9 @@
 # ETF_comparison
 
+Some little tricks to handle the 2 github accounts you have
 This assumes that you have a proper .ssh
+
+Instructions taken from here: https://stackoverflow.com/questions/21160774/github-error-key-already-in-use
 
 # Default GitHub
 Host github-GiuseppeFasanella
